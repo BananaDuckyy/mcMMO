@@ -1,0 +1,70 @@
+name: Compile and test
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/maven.yml'
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+
+jobs:
+  compile:
+    name: Maven compiler
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the current working tree
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # 2. Setup Java 17 JDK (Adopt)
+      - name: Java 17 setup
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-package: jdk
+          java-version: '17'
+      # 3. Setup local Maven package cache to speed up building
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      # 4. Build via Maven
+      - name: Build via Maven
+        run: mvn verify -B -Psql-tests --file pom.xml -DdisableXmlReport=true
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    # Only run on tag pushes, and only if compile passed
+    needs: compile
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Java 17 setup
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-package: jdk
+          java-version: '17'
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Build jar
+        run: mvn package -B --file pom.xml -DskipTests
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: target/*.jar
