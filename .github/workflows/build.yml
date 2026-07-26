@@ -1,4 +1,4 @@
-name: Compile and test
+name: Compile with artifacts and release
 on:
   push:
     paths:
